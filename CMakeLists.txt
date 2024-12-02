@@ -18,7 +18,9 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(main PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-# Include FFTW
+# Include FFTW, sndfile for macOS
 target_include_directories(main PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/include)
 target_link_directories(main PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/lib)
-target_link_libraries(main PRIVATE fftw3)
+target_include_directories(main PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/include)
+target_link_directories(main PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/lib)
+target_link_libraries(main PRIVATE fftw3 sndfile)

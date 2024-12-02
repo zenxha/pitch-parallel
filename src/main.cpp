@@ -1,6 +1,7 @@
 #include <iostream>
 #include <omp.h>
 #include <fftw3.h>
+#include <sndfile.h>
 
 
 int main() {
