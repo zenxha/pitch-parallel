@@ -1,128 +1,213 @@
-#include <iostream>
-#include <vector>
-#include <fftw3.h>
-#include <sndfile.h>
+#include <algorithm>
+#include <chrono>
 #include <cmath>
-#include <filesystem>
+#include <complex>
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <iomanip>
 
-// Function to apply a Hamming window
-void apply_hamming_window(std::vector<double>& window) {
-    int N = window.size();
-    for (int i = 0; i < N; ++i) {
-        window[i] *= 0.54 - 0.46 * cos(2 * M_PI * i / (N - 1));
-    }
+#include "fft.h"
+#include "portaudio.h"
+#include "sndfile.h"
+
+constexpr int SAMPLE_RATE = 44100;
+constexpr int FRAMES_PER_BUFFER = 512;
+constexpr int NUM_CHANNELS = 1;
+constexpr int HOP_SIZE = 512;
+constexpr int LOW_CUTOFF = 20;
+constexpr int HIGH_CUTOFF = 5000;
+int FFT_WINDOW_SIZE = 1024;  // power of 2 is required for radix-2 FFT
+
+std::atomic<bool> exit_flag(false); // for exiting the main thread
+
+struct AudioData {
+  std::vector<double> buffer;
+  std::mutex mutex;
+};
+
+int audio_callback(const void *input_buffer, void *output_buffer, unsigned long frames_per_buffer, const PaStreamCallbackTimeInfo *time_info, PaStreamCallbackFlags status_flags, void *user_data) {
+  auto *audio_data = static_cast<AudioData *>(user_data);
+
+  // copy audio input to buffer
+  const float *input = static_cast<const float *>(input_buffer);
+  std::lock_guard<std::mutex> lock(audio_data->mutex);
+  for (unsigned long i = 0; i < frames_per_buffer; ++i) {
+    audio_data->buffer.push_back(input[i]);
+  }
+
+  return paContinue;
 }
 
-// Function to compare FFT results
-bool is_significantly_different(const fftw_complex* current, const fftw_complex* previous, int size, double threshold) {
-    for (int i = 0; i < size; ++i) {
-        double diff_real = std::abs(current[i][0] - previous[i][0]);
-        double diff_imag = std::abs(current[i][1] - previous[i][1]);
-        if (diff_real > threshold || diff_imag > threshold) {
-            return true;
-        }
+void apply_band_pass_filter(std::vector<std::complex<double>> &spectrum, double sample_rate, double low_cutoff, double high_cutoff) {
+  int N = spectrum.size();
+  int low_bin = (low_cutoff / sample_rate) * N;
+  int high_bin = (high_cutoff / sample_rate) * N;
+
+  for (int i = 0; i < N; ++i) {
+    if (i < low_bin || i > high_bin) {
+      spectrum[i] = 0;
     }
-    return false;
+  }
 }
 
-// Function to find the dominant frequency
-double find_dominant_frequency(const fftw_complex* out, int size, double sample_rate) {
-    double max_magnitude = 0.0;
-    int max_index = 0;
-    for (int i = 0; i < size/2; ++i) {
-        double magnitude = std::sqrt(out[i][0] * out[i][0] + out[i][1] * out[i][1]);
-        if (magnitude > max_magnitude) {
-            max_magnitude = magnitude;
-            max_index = i;
-        }
+std::string formatDouble7(double value) {
+    std::ostringstream oss;
+
+    if (value >= 100000 || value <= -10000) {
+        return " ERROR ";
     }
-    // Convert index to frequency
-    double dominant_frequency = max_index * sample_rate / size;
-    return dominant_frequency;
+
+    if (std::abs(value) >= 1000) {
+        oss << std::fixed << std::setprecision(2);
+    } else if (std::abs(value) >= 100) {
+        oss << std::fixed << std::setprecision(3);
+    } else if (std::abs(value) >= 10) {
+        oss << std::fixed << std::setprecision(4);
+    } else {
+        oss << std::fixed << std::setprecision(5);
+    }
+
+    oss << value;
+
+    std::string result = oss.str();
+
+    if (result.length() > 7) {
+        result = result.substr(0, 7);
+    } else if (result.length() < 7) {
+        result.insert(0, 7 - result.length(), ' ');
+    }
+
+    return result;
 }
 
-void process_audio_samples(const std::vector<double>& samples, int window_size, int hop_size, double sample_rate) {
-    int N = samples.size();
-    int num_windows = (N - window_size) / hop_size + 1;
+void process_realtime_audio(AudioData &audio_data, double sample_rate, bool use_parallel, int num_threads) {
+  std::string last_output;
+  while (!exit_flag) {
+    std::vector<double> window;
 
-    fftw_complex *in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * window_size);
-    fftw_complex *out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * window_size);
-    fftw_complex *previous_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * window_size);
-    fftw_plan plan = fftw_plan_dft_1d(window_size, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-
-    std::vector<double> window(window_size);
-    bool first_window = true;
-    double threshold = 0.1; // Set a threshold for significant difference
-
-    for (int w = 0; w < num_windows; ++w) {
-        // Copy samples into window and apply Hamming window
-        for (int i = 0; i < window_size; ++i) {
-            window[i] = samples[w * hop_size + i];
-        }
-        apply_hamming_window(window);
-
-        // Prepare input for FFT
-        for (int i = 0; i < window_size; ++i) {
-            in[i][0] = window[i];
-            in[i][1] = 0.0;
-        }
-
-        // Execute FFT
-        fftw_execute(plan);
-
-        // Compare with previous window and output if significantly different
-        if (first_window || is_significantly_different(out, previous_out, window_size, threshold)) {
-            double dominant_frequency = find_dominant_frequency(out, window_size, sample_rate);
-            std::cout << "Window " << w << ": Dominant Frequency = " << dominant_frequency << " Hz\n";
-            first_window = false;
-        }
-
-        // Copy current output to previous output
-        for (int i = 0; i < window_size; ++i) {
-            previous_out[i][0] = out[i][0];
-            previous_out[i][1] = out[i][1];
-        }
+    {
+      std::lock_guard<std::mutex> lock(audio_data.mutex);
+      if (audio_data.buffer.size() >= FFT_WINDOW_SIZE) {
+        window.assign(audio_data.buffer.begin(), audio_data.buffer.begin() + FFT_WINDOW_SIZE);
+        audio_data.buffer.erase(audio_data.buffer.begin(), audio_data.buffer.begin() + HOP_SIZE);
+      }
     }
 
-    fftw_destroy_plan(plan);
-    fftw_free(in);
-    fftw_free(out);
-    fftw_free(previous_out);
+    if (window.empty()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      continue;
+    }
+
+     auto start = std::chrono::high_resolution_clock::now();
+
+    apply_hamming_window(window);
+
+    std::vector<std::complex<double>> fft_input(FFT_WINDOW_SIZE);
+    for (size_t i = 0; i < window.size(); ++i) {
+      fft_input[i] = std::complex<double>(window[i], 0.0);
+    }
+
+   
+    if (use_parallel) {
+      fft_cooley_tukey_parallel(fft_input, num_threads);
+    } else {
+      fft_cooley_tukey(fft_input);
+    }
+
+    apply_band_pass_filter(fft_input, sample_rate, LOW_CUTOFF, HIGH_CUTOFF);
+
+    auto threshold = compute_threshold_dynamic(fft_input, 0.35);
+    // auto prominent_frequencies = find_prominent_frequencies(fft_input, sample_rate, threshold);
+    auto dominant_frequency = find_dominant_frequency(fft_input, SAMPLE_RATE);
+    auto pitch = frequencyToPitchName(dominant_frequency);
+
+    
+
+    
+
+    // std::cout << "Prominent frequencies:\n";
+    // for (const auto &freq : prominent_frequencies) {
+    //     std::cout << freq.first << " Hz (" << freq.second << "), ";
+    // }
+    auto end = std::chrono::high_resolution_clock::now(); 
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    // One-line output
+    std::ostringstream oss;
+    oss << "[" << duration.count() << " ms]\t" << pitch << "\t" << formatDouble7(dominant_frequency) << " Hz";
+    std::string output = oss.str();
+    std::cout << "\r" << std::string(last_output.size(), ' ') << "\r";
+    std::cout << output << std::flush;
+    last_output = output;
+
+    // Continuous output
+    // std::cout << "[" << duration.count() << " ms] " << pitch << "\t" << formatDouble7(dominant_frequency) << " Hz" << std::endl;
+  }
+  std::cout << std::endl;
 }
 
 int main() {
-    // Open the audio file
-    SF_INFO sfinfo;
-    std::string file_path = "./tests/test2.wav";
-    std::cout << "Attempting to open file: " << file_path << std::endl;
-    SNDFILE *infile = sf_open(file_path.c_str(), SFM_READ, &sfinfo);
-    if (!infile) {
-        std::cerr << "Error opening audio file!" << std::endl;
-        return 1;
+  Pa_Initialize();
+
+  AudioData audio_data;
+  audio_data.buffer.reserve(FFT_WINDOW_SIZE * 2);  // buffer size to store overlapping windows
+
+  PaStream *stream;
+  Pa_OpenDefaultStream(&stream, NUM_CHANNELS, 0, paFloat32, SAMPLE_RATE, FRAMES_PER_BUFFER, audio_callback, &audio_data);
+  Pa_StartStream(stream);
+
+  std::cout << "Welcome to Pitch Parallel!\n\nShould we use parallel? (y/n)" << std::endl;
+
+  char input;
+  std::cin >> input;
+
+  bool use_parallel = input == 'y';
+
+  int num_threads = 1;
+  if (use_parallel) {
+    std::cout << "\nHow many threads do you want to use?\n# of threads (max 16, min 1): ";
+    std::cin >> num_threads;
+
+    if (num_threads > 16 || num_threads < 1) {
+      std::cout << "Error: # of threads is out of range!" << std::endl;
+      return -1;
     }
+  }
 
-    // Read the audio samples
-    std::vector<double> samples(sfinfo.frames * sfinfo.channels);
-    sf_readf_double(infile, samples.data(), sfinfo.frames);
-    sf_close(infile);
+  std::cout << "\nWindow Size = 1024 * K (power of two)" << std::endl << "K = ";
+  int K;
+  std::cin >> K;
+  if (K < 1 || K > 16) {
+    std::cout << "Error: K is out of range!" << std::endl;
+    return -1;
+  } else if ((K & (K - 1)) != 0){
+    std::cout << "Error: K must be a power of two!" << std::endl;
+    return -1;
+  }
+  FFT_WINDOW_SIZE = 1024 * K;
 
-    // Process the audio samples
-    int window_size = 1024;
-    int hop_size = 512;
-    double sample_rate = sfinfo.samplerate;
-    // process_audio_samples(samples, window_size, hop_size, sample_rate);
-    std::vector<double> mono_samples(sfinfo.frames);
-    for (int i = 0; i < sfinfo.frames; ++i) {
-        if (sfinfo.channels > 1) {
-            double left = samples[i * sfinfo.channels];
-            double right = samples[i * sfinfo.channels + 1];
-            mono_samples[i] = (left + right) / 2.0;
-        } else {
-            mono_samples[i] = samples[i];
-        }
+  std::thread processing_thread(process_realtime_audio, std::ref(audio_data), SAMPLE_RATE, use_parallel, num_threads);
+
+  std::cout << "\nPress 'q + Enter' to quit." << std::endl;
+  std::cout << "Latency\tPitch\tFrequency" << std::endl;
+  char exit_input;
+  while (std::cin >> exit_input) {
+    if (exit_input == 'q') {
+      exit_flag = true;  // Signal the threads to stop
+      break;
     }
-    // Use mono_samples instead of samples below
-    process_audio_samples(mono_samples, window_size, hop_size, sample_rate);
+  }
 
-    return 0;
+  std::cout << "Quit." << std::endl;
+  processing_thread.join();
+
+  // process_realtime_audio(audio_data, SAMPLE_RATE, use_parallel, num_threads);
+
+  Pa_StopStream(stream);
+  Pa_CloseStream(stream);
+  Pa_Terminate();
+
+  return 0;
 }
