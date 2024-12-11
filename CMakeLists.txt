@@ -28,20 +28,20 @@ endif()
 
 
 
-# # Cooley Tukey, Non Parallel, Non Realtime
-# add_executable(main2 src/main2.cpp)
+# Cooley Tukey, Non Parallel, Non Realtime
+add_executable(main2 src/main2.cpp)
 
-# # Link libraries
-# if(OpenMP_CXX_FOUND)
-#     target_link_libraries(main2 PRIVATE OpenMP::OpenMP_CXX)
-# endif()
+# Link libraries
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(main2 PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
-# # Include FFTW, sndfile for macOS
-# target_include_directories(main2 PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/include)
-# target_link_directories(main2 PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/lib)
-# target_include_directories(main2 PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/include)
-# target_link_directories(main2 PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/lib)
-# target_link_libraries(main2 PRIVATE fftw3 sndfile)
+# Include FFTW, sndfile for macOS
+target_include_directories(main2 PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/include)
+target_link_directories(main2 PRIVATE /opt/homebrew/Cellar/fftw/3.3.10_1/lib)
+target_include_directories(main2 PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/include)
+target_link_directories(main2 PRIVATE /opt/homebrew/Cellar/libsndfile/1.2.2/lib)
+target_link_libraries(main2 PRIVATE fftw3 sndfile)
 
 
 

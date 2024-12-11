@@ -1,0 +1,97 @@
+Running tests with 1 threads...
+Test 1 with 1 threads:
+9739
+Test 2 with 1 threads:
+9203
+Test 3 with 1 threads:
+8999
+Test 4 with 1 threads:
+9282
+Test 5 with 1 threads:
+9085
+
+Running tests with 2 threads...
+Test 1 with 2 threads:
+6517
+Test 2 with 2 threads:
+6647
+Test 3 with 2 threads:
+6146
+Test 4 with 2 threads:
+6145
+Test 5 with 2 threads:
+6247
+
+Running tests with 3 threads...
+Test 1 with 3 threads:
+6489
+Test 2 with 3 threads:
+5749
+Test 3 with 3 threads:
+5734
+Test 4 with 3 threads:
+5965
+Test 5 with 3 threads:
+5864
+
+Running tests with 4 threads...
+Test 1 with 4 threads:
+6032
+Test 2 with 4 threads:
+5789
+Test 3 with 4 threads:
+5789
+Test 4 with 4 threads:
+5784
+Test 5 with 4 threads:
+5789
+
+Running tests with 5 threads...
+Test 1 with 5 threads:
+6077
+Test 2 with 5 threads:
+6113
+Test 3 with 5 threads:
+6019
+Test 4 with 5 threads:
+6036
+Test 5 with 5 threads:
+5941
+
+Running tests with 6 threads...
+Test 1 with 6 threads:
+6222
+Test 2 with 6 threads:
+6010
+Test 3 with 6 threads:
+6237
+Test 4 with 6 threads:
+6323
+Test 5 with 6 threads:
+6186
+
+Running tests with 7 threads...
+Test 1 with 7 threads:
+6539
+Test 2 with 7 threads:
+6282
+Test 3 with 7 threads:
+6449
+Test 4 with 7 threads:
+6637
+Test 5 with 7 threads:
+6431
+
+Running tests with 8 threads...
+Test 1 with 8 threads:
+7680
+Test 2 with 8 threads:
+6723
+Test 3 with 8 threads:
+6728
+Test 4 with 8 threads:
+7125
+Test 5 with 8 threads:
+6817
+
+All tests completed.
