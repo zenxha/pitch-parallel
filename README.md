@@ -1,6 +1,6 @@
 # pitch-parallel
 
-This project uses a Discrete Fourier Transform (DFT) with OpenMP to identify musical notes in audio samples by analyzing frequency components in parallel. Ideal for musicians and music learners, this tool isolates dominant frequencies in real-time, mapping them to musical notes for easy song analysis.
+This project uses a Discrete Fourier Transform (DFT) with OpenMP to identify musical notes in audio samples by analyzing frequency components in parallel. Ideal for musicians and music learners, this tool isolates dominant frequencies in real-time and maps them to musical notes for easy song analysis.
 
 ## Environment Setup Instructions for Mac
 
