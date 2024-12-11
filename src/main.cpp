@@ -1,11 +1,14 @@
 #include <algorithm>
 #include <chrono>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <complex>
 #include <iostream>
 #include <thread>
 #include <vector>
 #include <iomanip>
+#include <atomic>
+#include <mutex>
 
 #include "fft.h"
 #include "portaudio.h"
@@ -99,7 +102,7 @@ void process_realtime_audio(AudioData &audio_data, double sample_rate, bool use_
       continue;
     }
 
-     auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
     apply_hamming_window(window);
 
@@ -117,21 +120,16 @@ void process_realtime_audio(AudioData &audio_data, double sample_rate, bool use_
 
     apply_band_pass_filter(fft_input, sample_rate, LOW_CUTOFF, HIGH_CUTOFF);
 
-    auto threshold = compute_threshold_dynamic(fft_input, 0.35);
+    // auto threshold = compute_threshold_dynamic(fft_input, 0.35);
     // auto prominent_frequencies = find_prominent_frequencies(fft_input, sample_rate, threshold);
     auto dominant_frequency = find_dominant_frequency(fft_input, SAMPLE_RATE);
     auto pitch = frequencyToPitchName(dominant_frequency);
-
-    
-
-    
 
     // std::cout << "Prominent frequencies:\n";
     // for (const auto &freq : prominent_frequencies) {
     //     std::cout << freq.first << " Hz (" << freq.second << "), ";
     // }
     auto end = std::chrono::high_resolution_clock::now(); 
-
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     // One-line output
@@ -158,39 +156,41 @@ int main() {
   Pa_OpenDefaultStream(&stream, NUM_CHANNELS, 0, paFloat32, SAMPLE_RATE, FRAMES_PER_BUFFER, audio_callback, &audio_data);
   Pa_StartStream(stream);
 
-  std::cout << "Welcome to Pitch Parallel!\n\nShould we use parallel? (y/n)" << std::endl;
+  std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!Welcome to Pitch Parallel!\n!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n";
+  std::cout << "[!] Do you want to use parallel processing? (y/n): ";
 
   char input;
   std::cin >> input;
 
   bool use_parallel = input == 'y';
-
   int num_threads = 1;
   if (use_parallel) {
-    std::cout << "\nHow many threads do you want to use?\n# of threads (max 16, min 1): ";
+    std::cout << "\n[!] How many threads do you want to use? (max 16, min 1): ";
     std::cin >> num_threads;
-
     if (num_threads > 16 || num_threads < 1) {
-      std::cout << "Error: # of threads is out of range!" << std::endl;
+      std::cout << "\nError: # of threads is out of range!" << std::endl;
       return -1;
     }
   }
 
-  std::cout << "\nWindow Size = 1024 * K (power of two)" << std::endl << "K = ";
+  std::cout << "\n[?] The FFT window size is determined by the formula: 1024 * K";
+  std::cout << "\n[!] Please enter a value for K (must be a power of 2): ";
+  
   int K;
   std::cin >> K;
   if (K < 1 || K > 16) {
-    std::cout << "Error: K is out of range!" << std::endl;
+    std::cout << "\nError: K is out of range!" << std::endl;
     return -1;
   } else if ((K & (K - 1)) != 0){
-    std::cout << "Error: K must be a power of two!" << std::endl;
+    std::cout << "\nError: K must be a power of 2!" << std::endl;
     return -1;
   }
   FFT_WINDOW_SIZE = 1024 * K;
 
   std::thread processing_thread(process_realtime_audio, std::ref(audio_data), SAMPLE_RATE, use_parallel, num_threads);
+  // process_realtime_audio(audio_data, SAMPLE_RATE, use_parallel, num_threads);
 
-  std::cout << "\nPress 'q + Enter' to quit." << std::endl;
+  std::cout << "\n[!] Press 'q + Enter' to quit.\n" << std::endl;
   std::cout << "Latency\tPitch\tFrequency" << std::endl;
   char exit_input;
   while (std::cin >> exit_input) {
@@ -200,10 +200,8 @@ int main() {
     }
   }
 
-  std::cout << "Quit." << std::endl;
   processing_thread.join();
-
-  // process_realtime_audio(audio_data, SAMPLE_RATE, use_parallel, num_threads);
+  std::cout << "\n[!] Quit." << std::endl;
 
   Pa_StopStream(stream);
   Pa_CloseStream(stream);
