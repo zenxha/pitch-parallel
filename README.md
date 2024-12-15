@@ -1,6 +1,6 @@
 # pitch-parallel
 
-This project uses a Discrete Fourier Transform (DFT) with OpenMP to identify musical notes in audio samples by analyzing frequency components in parallel. Ideal for musicians and music learners, this tool isolates dominant frequencies in real-time and maps them to musical notes for easy song analysis.
+This project uses a the Cooley-Tukey Fourier Transform (FFT) with multithreading to identify musical notes in real-time and prerecorded audio samples by analyzing frequency components. 
 
 ## Environment Setup Instructions for Mac
 
